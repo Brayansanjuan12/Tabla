@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Gestión de Inventario con Tabla Dinámica</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding-top: 60px; /* Para ajustar el espacio del header fijo */
+            background-color: #f0f8ff; /* Color de fondo azul muy claro */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid black;
+        }
+
+        th,
+        td {
+            padding: 5px;
+            text-align: left;
+        }
+
+        button {
+            margin-top: 5px;
+        }
+
+        #tablaResultados {
+            display: none;
+        }
+
+        /* Inicialmente ocultamos la tabla de resultados */
+        h2 {
+            text-align: center;
+        }
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #f5f5f5;
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        .center-button {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <a class="navbar-brand" href="#">Sistema de Inventario de Datos</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <button class="btn btn-outline-info mr-2" onclick="agregarBodega()">Agregar Bodega</button>
+                </li>
+                <li class="nav-item">
+                    <button class="btn btn-outline-danger" onclick="limpiarDatos()">Limpiar Datos</button>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h2>Sistema de Gestión de Inventario con Tabla Dinámica</h2>
+
+        <table id="tablaBodegas">
+            <thead>
+                <tr>
+                    <th>Nombre de la Bodega</th>
+                    <th>Nivel Actual de Existencias (Unidades)</th>
+                    <th>Demanda Pronosticada Mensual (Unidades)</th>
+                    <th>Error de Pronóstico (Desviación Estándar Mensual)</th>
+                    <th>Nivel de Disponibilidad de Existencias</th>
+                    <th>Tabla DIS Normal</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Las bodegas se agregarán aquí -->
+            </tbody>
+        </table>
+<br>
+        <label for="unidadesRecibidas">Unidades Recibidas (Para todas las bodegas):</label>
+        <input type="number" id="unidadesRecibidas" name="unidadesRecibidas" value="0"><br>
+        <div class="center-button">
+            <button class="btn btn-primary" onclick="calcular()">Calcular</button>
+        </div>
+
+        <h3>Resultados:</h3>
+        <table id="tablaResultados">
+            <thead>
+                <tr>
+                    <th>Nombre de la Bodega</th>
+                    <th>Requerimientos Totales</th>
+                    <th>Nivel Actual de Existencia</th>
+                    <th>Requerimientos Netos</th>
+                    <th>Exceso Prorrateado</th>
+                    <th>Asignación (Despacho)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Los resultados se mostrarán aquí -->
+            </tbody>
+            <tfoot>
+                <!-- Los totales se mostrarán aquí -->
+            </tfoot>
+        </table>
+    </div>
+    <script>
+        function agregarBodega() {
+            var tabla = document.getElementById('tablaBodegas').getElementsByTagName('tbody')[0];
+            var nuevaFila = tabla.insertRow();
+            var celda1 = nuevaFila.insertCell(0);
+            var celda2 = nuevaFila.insertCell(1);
+            var celda3 = nuevaFila.insertCell(2);
+            var celda4 = nuevaFila.insertCell(3);
+            var celda5 = nuevaFila.insertCell(4);
+            var celda6 = nuevaFila.insertCell(5);
+            var celda7 = nuevaFila.insertCell(6);
+
+            celda1.innerHTML = '<input type="text" name="nombreBodega">';
+            celda2.innerHTML = '<input type="number" name="nivelActual" value="0">';
+            celda3.innerHTML = '<input type="number" name="demandaPronosticada" value="0">';
+            celda4.innerHTML = '<input type="number" name="errorPronostico" value="0">';
+            celda5.innerHTML = '<input type="number" name="nivelDisponibilidad" step="0.01" value="1">';
+            celda6.innerHTML = '<input type="number" name="tablaDisNormal" step="0.01" value="0">';
+            celda7.innerHTML = '<button type="button" onclick="eliminarBodega(this)">Eliminar</button>';
+        }
+
+        function eliminarBodega(boton) {
+            var fila = boton.parentNode.parentNode;
+            fila.parentNode.removeChild(fila);
+        }
+
+        function calcular() {
+            var tabla = document.getElementById('tablaBodegas').getElementsByTagName('tbody')[0];
+            var filas = tabla.getElementsByTagName('tr');
+            var unidadesRecibidas = parseFloat(document.getElementById('unidadesRecibidas').value);
+            var totalNetRequirements = 0;
+            var totalPivot = 0;
+            var totalExcess = 0;
+            var totalDispatch = 0;
+            var resultadosTabla = document.getElementById('tablaResultados').getElementsByTagName('tbody')[0];
+            resultadosTabla.innerHTML = ''; // Limpiar resultados anteriores
+
+            for (var i = 0; i < filas.length; i++) {
+                var celdas = filas[i].getElementsByTagName('td');
+                var nombreBodega = celdas[0].getElementsByTagName('input')[0].value;
+                var nivelActual = parseFloat(celdas[1].getElementsByTagName('input')[0].value);
+                var demandaPronosticada = parseFloat(celdas[2].getElementsByTagName('input')[0].value);
+                var errorPronostico = parseFloat(celdas[3].getElementsByTagName('input')[0].value);
+                var nivelDisponibilidad = parseFloat(celdas[4].getElementsByTagName('input')[0].value);
+                var tablaDisNormal = parseFloat(celdas[5].getElementsByTagName('input')[0].value);
+
+                var totalRequirements = demandaPronosticada + tablaDisNormal * errorPronostico;
+                var netRequirements = totalRequirements - nivelActual;
+
+                totalNetRequirements += netRequirements;
+                totalPivot += demandaPronosticada;
+
+                var nuevaFilaResultados = resultadosTabla.insertRow();
+                nuevaFilaResultados.insertCell(0).textContent = nombreBodega;
+                nuevaFilaResultados.insertCell(1).textContent = customRound(totalRequirements);
+                nuevaFilaResultados.insertCell(2).textContent = customRound(nivelActual);
+                nuevaFilaResultados.insertCell(3).textContent = customRound(netRequirements);
+            }
+
+            var tfoot = document.getElementById('tablaResultados').getElementsByTagName('tfoot')[0];
+            tfoot.innerHTML = ''; // Clear previous totals
+
+            for (var j = 0; j < filas.length; j++) {
+                var filaResultado = resultadosTabla.getElementsByTagName('tr')[j];
+                var pivotBodega = parseFloat(filas[j].getElementsByTagName('td')[2].getElementsByTagName('input')[0].value);
+                var netRequirementsIndividual = parseFloat(filaResultado.cells[3].textContent);
+                var proratedExcess = (pivotBodega * (unidadesRecibidas - totalNetRequirements)) / totalPivot;
+                var despacho = netRequirementsIndividual + proratedExcess;
+
+                filaResultado.insertCell(4).textContent = customRound(proratedExcess);
+                filaResultado.insertCell(5).textContent = customRound(despacho);
+
+                totalExcess += proratedExcess;
+                totalDispatch += despacho;
+            }
+
+            var totalRow = tfoot.insertRow();
+            totalRow.insertCell(0).textContent = "Totales";
+            totalRow.insertCell(1).textContent = "";
+            totalRow.insertCell(2).textContent = "";
+            totalRow.insertCell(3).textContent = customRound(totalNetRequirements);
+            totalRow.insertCell(4).textContent = customRound(totalExcess);
+            totalRow.insertCell(5).textContent = customRound(totalDispatch);
+
+            document.getElementById('tablaResultados').style.display = 'table';
+        }
+
+        function limpiarDatos() {
+            // Ocultar la tabla de resultados y limpiar los datos de las bodegas
+            document.getElementById('tablaResultados').style.display = 'none';
+            document.getElementById('tablaBodegas').getElementsByTagName('tbody')[0].innerHTML = '';
+            document.getElementById('tablaResultados').getElementsByTagName('tbody')[0].innerHTML = '';
+            document.getElementById('unidadesRecibidas').value = '0';
+        }
+
+        function customRound(value) {
+            return Math.floor(value) + (value - Math.floor(value) >= 0.5 ? 1 : 0);
+        }
+
+    </script>
+
+
+    <footer>
+        <p>© 2024 Sistema de Inventario. Todos los derechos reservados.</p>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Tus funciones JavaScript aquí...
+    </script>
+</body>
+
+</html>
